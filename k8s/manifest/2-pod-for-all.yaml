@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: name-pod
+  labels:
+    first: i-am-label
+    second: i-am-label2
+spec:
+  containers:
+    #можно в одном поде запустить несколько контейнеров, но обычно это не делают, тк неудобно управлять ими
+    - image: tomcat:8.5.38
+      name: name-image
+      ports:
+        - containerPort: 80
+    - image: nginx:latest
+      name: name-image2
+      ports:
+        - containerPort: 81

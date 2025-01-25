@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tomcat
+  name: tomcat-name-dep
+spec:
+  replicas: 3
+  selector:
+    #с какими подами работает наш деплоймент
+    matchLabels:
+      app: tomcat-label
+  template:
+    #Какая методата будет вешаться на поды = matchLabels
+    metadata:
+      labels:
+        app: tomcat-label
+    spec:
+      #какие контейнеры в подах
+      containers:
+        - image: tomcat:8.5.38
+          name: tomct-pod-name
+          ports:
+            - containerPort: 81
+
+  #можно создать отдельный yaml или тут раздерив черточкой
+---
+#это манифест для автоскейлиена
+#его создала этой командой - kubectl autoscale deployments infinispan --min=1 --max=4 --cpu-percent=80
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: infinispan
+  namespace: default
+spec:
+  maxReplicas: 4
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 80
+          type: Utilization
+      type: Resource
+  minReplicas: 1
+  #что будет скейлить
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: infinispan

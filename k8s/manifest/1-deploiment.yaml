@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tomcat
+  name: tomcat-name-dep
+spec:
+  replicas: 3
+  selector:
+    #с какими подами работает наш деплоймент
+    matchLabels:
+      app: tomcat-label
+  template:
+    #Какая методата будет вешаться на поды = matchLabels
+    metadata:
+      labels:
+        app: tomcat-label
+    spec:
+      #какие контейнеры в подах
+      containers:
+        - image: tomcat:8.5.38
+          name: tomct-pod-name
+          ports:
+            - containerPort: 81
+
+

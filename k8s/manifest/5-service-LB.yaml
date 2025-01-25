@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tomcat-for-lb #это указать в LB service
+  name: tomcat-name-dep
+spec:
+  replicas: 3
+  selector:
+    #с какими подами работает наш деплоймент
+    matchLabels:
+      app: tomcat-label
+  template:
+    #Какая методата будет вешаться на поды = matchLabels
+    metadata:
+      labels:
+        app: tomcat-label
+    spec:
+      #какие контейнеры в подах
+      containers:
+        - image: tomcat:8.5.38
+          name: tomct-pod-name
+          ports:
+            - containerPort: 81
+
+
+
+---
+#для доступа к подам
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: tomcat
+  name: tomcat-name-dep
+  namespace: default
+spec:
+  allocateLoadBalancerNodePorts: true
+  clusterIP: 10.96.22.210
+  clusterIPs:
+    - 10.96.22.210
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  #на какие портах работать будет
+  ports:
+    - nodePort: 31087
+      port: 80      #порт на LB
+      protocol: TCP
+      targetPort: 80 #порт на поде
+  #на какие поды будет работать- Мапится на лейблы подов
+  selector:
+    app: tomcat-for-lb
+  sessionAffinity: None
+  #один из 4 типов сервиса
+  type: LoadBalancer

@@ -1,0 +1,47 @@
+# Ingress Contour -https://projectcontour.io/getting-started/
+# 1) Устанавливаем
+ kubectl apply -f https://projectcontour.io/quickstart/contour.yaml
+# 2) Установилось в kubectl get pods -n projectcontour -o wide
+
+# Создам деплоймент (сделай несколько штук)
+kubectl create deployment infinispan --image infinispan/server:13.0
+kubectl create deployment tomcat --image tomcat:8.5.38
+
+#заскейлим их
+kubectl scale deployments infinispan  --replicas 3
+kubectl scale deployments tomcat  --replicas 3
+
+#создадим сервисы ClusterIp
+kubectl expose deployments tomcat --type=ClusterIP --port=80
+kubectl expose deployments infinispan --type=ClusterIP --port=80
+
+#создаем ингресс
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-host
+spec:
+  #правила
+  rules:
+    - host: kafka-broker.11.217.97.97.nip.io
+      http:
+        paths:
+          - backend:
+              #название и порт сервиса на который будет перенаправлять запрос
+              service:
+                name: tomcat
+                port:
+                  number: 80
+            pathType: Prefix
+            path: /
+    - host: infinispan.11.217.97.97.nip.io
+      http:
+        paths:
+          - backend:
+              #название и порт сервиса на который будет перенаправлять запрос
+              service:
+                name: infinispan
+                port:
+                  number: 80
+            path: / #можно указать путь другой
+            pathType: Prefix

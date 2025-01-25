@@ -1,0 +1,15 @@
+#минимальный набор для создания пода
+
+# kubectl apply/delete -f /Users/fkshistero/Documents/stydy/k8s/manifest/3-pod-min.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: name-pod
+spec:
+  containers:
+    - image: tomcat:8.5.38 #можно менять только image без удаления пода, те можно снова сделать applay и заработает
+      name: name-image
+      #нужно открыть порт, если нужен доступ к поду
+      #видно будет если вызвать команду kubectl describe pod name-pod
+      ports:
+        - containerPort: 80
