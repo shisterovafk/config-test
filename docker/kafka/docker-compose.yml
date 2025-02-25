@@ -1,0 +1,41 @@
+
+#version: '3' # устарело Compose не выбирает version точную схему для проверки файла Compose, а отдает предпочтение самой последней схеме при ее реализации.
+
+services:
+
+#по умолчанию запускает в Running in KRaft mode..., 3.5.0 zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper
+    ports:
+      - "2181:2181"
+    volumes:
+      - "zookeeper_data:/var/lib/zookeeper/data"
+      - "zookeeper_data:/var/lib/zookeeper/log"
+      - "zookeeper_data:/etc/zookeeper/secrets"
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+
+  kafka-1:
+    image: confluentinc/cp-kafka
+    ports:
+      - "${ADV_KAFKA_CLIENT_PORT}:9092"
+      - "${ADV_KAFKA_AGENT_PORT}:9093"
+      - "${ADV_KAFKA_BROKER_1_PORT}:9094"
+    volumes:
+      - "kafka_data:/var/lib/kafka/data"
+      - "kafka_data:/etc/kafka/secrets"
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENERS=CLIENT://:9092, AGENT://:9093, BROKER://:9094
+      - KAFKA_ADVERTISED_LISTENERS=CLIENT://${ADV_KAFKA_CLIENT_ADDR}:${ADV_KAFKA_CLIENT_PORT}, AGENT://${ADV_KAFKA_AGENT_ADDR}:${ADV_KAFKA_AGENT_PORT}, BROKER://${ADV_KAFKA_BROKER_1_ADDR}:${ADV_KAFKA_BROKER_1_PORT}
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT, AGENT:PLAINTEXT, BROKER:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=BROKER
+    depends_on:
+      - zookeeper
+
+# Секция volumes на корневом уровне: Здесь объявляются все внешние тома, которые могут быть использованы одним или несколькими сервисами.
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local
