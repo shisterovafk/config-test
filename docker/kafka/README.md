@@ -4,9 +4,7 @@
 
 Те позвоняет запускать несколько контейнеров (docker file) в одном.
 
-### Запуск 
-
-Перед запуском почистить папку с Kafka_data если запускаешь с новой конфигкрацией.
+### Запуск
 
 `docker-compose up`
 `docker-compose down -v` -удалить все за собой
@@ -20,9 +18,16 @@
    - akhq для удобного просмотра топиков
      https://akhq.io/docs/configuration/docker.html
 2) Поднять стек ELK
-
     [Yandex.Wiki.ELK](https://wiki.yandex.ru/homepage/work/technologies/elk/)
+    [ELK-blog](https://www.elastic.co/blog/getting-started-with-the-elastic-stack-and-docker-compose)
 4) Поднять прометеус для визуализации метрик
+
+### ELK
+Elasticsearch (хранение и поиск данных)
+
+Logstash (конвеер для обработки, фильтрации и нормализации логов)
+
+Kibana (интерфейс для удобного поиска и администрирования)
 
 
 

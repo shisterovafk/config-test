@@ -9,15 +9,15 @@ volumes:
     driver: local
   certs:
     driver: local
-  esdata:
+  esdata01:
     driver: local
-  kibanadata:
+  kibanadata01:
     driver: local
-  metricbeatdata:
+  metricbeatdata01:
     driver: local
-  filebeatdata:
+  filebeatdata01:
     driver: local
-  logstashdata:
+  logstashdata01:
     driver: local
 
 #настройки сетевых параметров, которые позволяют контейнерам взаимодействовать друг с другом. Каждый контейнер в docker-compose обычно подключается к виртуальной сети Docker,
@@ -29,35 +29,7 @@ networks:
 
 services:
 
-#по умолчанию запускает в Running in KRaft mode..., 3.5.0 zookeeper
-  zookeeper:
-    image: confluentinc/cp-zookeeper
-    ports:
-      - "2181:2181"
-    volumes:
-      - "zookeeper_data:/var/lib/zookeeper/data"
-      - "zookeeper_data:/var/lib/zookeeper/log"
-      - "zookeeper_data:/etc/zookeeper/secrets"
-    environment:
-      - ZOOKEEPER_CLIENT_PORT=2181
 
-  kafka-1:
-    image: confluentinc/cp-kafka
-    ports:
-      - "${ADV_KAFKA_CLIENT_PORT}:9092"
-      - "${ADV_KAFKA_AGENT_PORT}:9093"
-      - "${ADV_KAFKA_BROKER_1_PORT}:9094"
-    volumes:
-      - "kafka_data:/var/lib/kafka/data"
-      - "kafka_data:/etc/kafka/secrets"
-    environment:
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_LISTENERS=CLIENT://:9092, AGENT://:9093, BROKER://:9094
-      - KAFKA_ADVERTISED_LISTENERS=CLIENT://${ADV_KAFKA_CLIENT_ADDR}:${ADV_KAFKA_CLIENT_PORT}, AGENT://${ADV_KAFKA_AGENT_ADDR}:${ADV_KAFKA_AGENT_PORT}, BROKER://${ADV_KAFKA_BROKER_1_ADDR}:${ADV_KAFKA_BROKER_1_PORT}
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT, AGENT:PLAINTEXT, BROKER:PLAINTEXT
-      - KAFKA_INTER_BROKER_LISTENER_NAME=BROKER
-    depends_on:
-      - zookeeper
 
 #Включение безопасности. Этот контейнер настройки запустится первым, дождется, пока контейнер ES01 выйдет в сеть, а затем использует наши переменные среды для настройки паролей, которые мы хотим в нашем кластере.
 #Мы также сохраняем все сертификаты в томе «certs», чтобы все другие контейнеры могли иметь к ним доступ.
@@ -128,7 +100,7 @@ services:
       #будем использовать сертификат CA и сертификаты узлов, которые были сгенерированы setup
       - certs:/usr/share/elasticsearch/config/certs
       #храним данные Elasticsearch в томе за пределами контейнера для надежности
-      - esdata:/usr/share/elasticsearch/data
+      - esdata01:/usr/share/elasticsearch/data
     ports:
       - ${ES_PORT}:9200
     environment:
@@ -160,5 +132,83 @@ services:
           "curl -s --cacert config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'",
         ]
       interval: 10s
+      timeout: 30s
+      retries: 120
+
+  kibana:
+    depends_on:
+      es01:
+        condition: service_healthy
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    labels:
+      co.elastic.logs/module: kibana
+    volumes:
+      - certs:/usr/share/kibana/config/certs
+      - kibanadata01:/usr/share/kibana/data
+    ports:
+      - ${KIBANA_PORT}:5601
+    environment:
+      - SERVERNAME=kibana
+      #Мы можем указать здесь имя контейнера для нашего контейнера ES01 Elasticsearch, поскольку мы используем сеть Docker по умолчанию
+      - ELASTICSEARCH_HOSTS=https://es01:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
+      - XPACK_SECURITY_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+      - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+    mem_limit: ${KB_MEM_LIMIT}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+        ]
+      interval: 10s
       timeout: 10s
       retries: 120
+
+  #сбор метрик, аналог графаны
+  metricbeat01:
+    depends_on:
+      es01:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    image: docker.elastic.co/beats/metricbeat:${STACK_VERSION}
+    user: root
+    volumes:
+      - certs:/usr/share/metricbeat/certs
+      - metricbeatdata01:/usr/share/metricbeat/data
+      - "./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
+      - "/proc:/hostfs/proc:ro"
+      - "/:/hostfs:ro"
+    environment:
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTIC_HOSTS=https://es01:9200
+      - KIBANA_HOSTS=http://kibana:5601
+      - LOGSTASH_HOSTS=http://logstash01:9600
+
+  #для приема логов
+  filebeat01:
+    depends_on:
+      es01:
+        condition: service_healthy
+    image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
+    user: root
+    volumes:
+      - certs:/usr/share/filebeat/certs
+      - filebeatdata01:/usr/share/filebeat/data
+      - "./filebeat_ingest_data/:/usr/share/filebeat/ingest_data/"
+      - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    environment:
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTIC_HOSTS=https://es01:9200
+      - KIBANA_HOSTS=http://kibana:5601
+      - LOGSTASH_HOSTS=http://logstash01:9600
